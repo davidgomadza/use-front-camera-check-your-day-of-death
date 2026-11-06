@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Photo Oracle — Ask the Image (with camera)</title>
+    <style>
+        :root {
+            --blue-stripe-1: #0a2540; /* Dark Blue */
+            --blue-stripe-2: #0052cc; /* Primary Blue */
+            --blue-stripe-3: #4da3ff; /* Light Blue */
+            --blue-stripe-4: #e6f0ff; /* Pale Blue */
+            --white: #ffffff;
+            --text-main: #1a2b4c;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--white);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            /* Stripe system background */
+            background: linear-gradient(180deg, var(--blue-stripe-4) 0%, var(--white) 20%, var(--white) 80%, var(--blue-stripe-4) 100%);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: var(--white);
+            box-shadow: 0 10px 30px rgba(10, 37, 64, 0.1);
+            border-left: 8px solid var(--blue-stripe-2);
+            border-right: 8px solid var(--blue-stripe-3);
+        }
+
+        header {
+            background: var(--blue-stripe-1);
+            color: var(--white);
+            padding: 24px;
+            text-align: center;
+            border-bottom: 4px solid var(--blue-stripe-3);
+        }
+        header h1 { margin: 0 0 8px 0; font-size: 26px; letter-spacing: 1px; }
+        header p { margin: 0; opacity: 0.9; font-size: 14px; }
+
+        .content { padding: 24px; }
+
+        .instructions {
+            background: var(--blue-stripe-4);
+            border-left: 4px solid var(--blue-stripe-2);
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .dropzone {
+            border: 2px dashed var(--blue-stripe-3);
+            border-radius: 12px;
+            padding: 30px 20px;
+            text-align: center;
+            background: var(--white);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        .dropzone.dragover { background: var(--blue-stripe-4); border-color: var(--blue-stripe-2); }
+        .dropzone h3 { margin: 0 0 10px 0; color: var(--blue-stripe-2); }
+        .dropzone p { margin: 0; color: #666; font-size: 13px; }
+
+        .btn-group { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+        .btn {
+            flex: 1; padding: 14px 20px; border: none; border-radius: 8px;
+            font-size: 16px; font-weight: 600; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            transition: transform 0.1s;
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-primary { background: var(--blue-stripe-2); color: var(--white); }
+        .btn-secondary { background: var(--white); color: var(--blue-stripe-2); border: 2px solid var(--blue-stripe-2); }
+        .btn-danger { background: #09de65; color: var(--white); flex: 0.5; }
+
+        .voice-toggle {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 24px;
+            padding: 12px; background: var(--blue-stripe-4); border-radius: 8px;
+        }
+        .voice-toggle input { width: 20px; height: 20px; accent-color: var(--blue-stripe-2); }
+
+        .image-container {
+            position: relative; display: none; margin-bottom: 24px;
+            border-radius: 12px; overflow: hidden; border: 3px solid var(--blue-stripe-2);
+        }
+        .image-container img { width: 100%; display: block; }
+        .image-container canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+
+        .questions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+        @media (max-width: 600px) { .questions-grid { grid-template-columns: 1fr; } }
+        .question-card { background: var(--white); border: 1px solid #e0e0e0; border-radius: 10px; padding: 16px; border-top: 3px solid var(--blue-stripe-3); }
+        .question-card h4 { margin: 0 0 8px 0; color: var(--blue-stripe-1); }
+        .question-card p { margin: 0; font-size: 13px; color: #555; line-height: 1.4; }
+        
+        .shortcuts { text-align: center; font-size: 13px; color: var(--blue-stripe-2); font-weight: 600; margin-bottom: 24px;}
+
+        .transcript-box {
+            background: var(--blue-stripe-1); color: var(--white); border-radius: 10px;
+            padding: 20px; min-height: 120px; font-family: monospace; font-size: 14px; line-height: 1.6;
+            border: 2px solid var(--blue-stripe-3);
+        }
+        .transcript-box .placeholder { opacity: 0.5; }
+
+        /* FIXED CAMERA MODAL */
+        .camera-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 37, 64, 0.95); z-index: 9999;
+            flex-direction: column; align-items: center; justify-content: center; padding: 20px;
+        }
+        .camera-modal.active { display: flex; }
+        
+        /* Crucial fixes for mobile: playsinline and muted are required for iOS */
+        .camera-modal video {
+            width: 100%; max-width: 500px; max-height: 60vh;
+            object-fit: cover; border-radius: 12px; background: #000;
+            border: 3px solid var(--blue-stripe-3);
+        }
+        .camera-controls { margin-top: 30px; display: flex; gap: 20px; width: 100%; max-width: 500px; }
+        .camera-controls .btn { flex: 1; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Photo Oracle</h1>
+        <p>Upload a photo → trace the two scan paths → hear what the image “says”.</p>
+    </header>
+
+    <div class="content">
+        <div class="instructions">
+            <strong>Instructions:</strong> Upload a photo make sure voice box is unchecked and listen to the photo.<br>
+            Items in the photo automatically state the Day of birth and the day of death. After tick the voice box.
+        </div>
+
+        <div class="dropzone" id="dropzone">
+            <h3>🖼️ Drop a photo or image here</h3>
+            <p>JPG · PNG · WEBP — or use “Upload photo” / “Use camera” below</p>
+        </div>
+
+        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+        <!-- Native Fallback for mobile if custom camera fails -->
+        <input type="file" id="nativeCameraFallback" accept="image/*" capture="environment" style="display: none;">
+
+        <div class="btn-group">
+            <button class="btn btn-primary" id="uploadBtn">Upload photo</button>
+            <button class="btn btn-secondary" id="cameraBtn">📷 Use camera</button>
+            <button class="btn btn-danger" id="clearBtn">Clear</button>
+        </div>
+
+        <div class="voice-toggle">
+            <input type="checkbox" id="voiceToggle">
+            <label for="voiceToggle"><strong>Voice AGT8000 mode</strong></label>
+        </div>
+
+        <div class="image-container" id="imageContainer">
+            <img id="previewImg" src="" alt="Uploaded Photo">
+            <canvas id="scanCanvas"></canvas>
+        </div>
+
+        <h3 style="color: var(--blue-stripe-1);">The two questions</h3>
+        <div class="questions-grid">
+            <div class="question-card">
+                <h4>1. What is their day of birth?</h4>
+                <p>bottom-left ↗ diagonal to top-right →<br>
+                straight along the top edge to top-left →<br>
+                straight down to bottom-left</p>
+            </div>
+            <div class="question-card">
+                <h4>2. What is their day of death at birth?</h4>
+                <p>top-right ↙ diagonal to bottom-left →<br>
+                straight along the bottom edge to bottom-right →<br>
+                straight up to top-right</p>
+            </div>
+        </div>
+        <div class="shortcuts">Shortcuts: 1 day of birth · 2 day of death</div>
+
+        <h3 style="color: var(--blue-stripe-1);">Transcript</h3>
+        <div class="transcript-box" id="transcriptBox">
+            <span class="placeholder">No questions asked yet.</span>
+        </div>
+    </div>
+</div>
+
+<!-- Camera Modal -->
+<div class="camera-modal" id="cameraModal">
+    <h3 style="color: white; margin-bottom: 15px;">📸 Take a photo</h3>
+    <video id="cameraVideo" autoplay playsinline muted></video>
+    <canvas id="cameraCanvas" style="display: none;"></canvas>
+    <div class="camera-controls">
+        <button class="btn btn-danger" id="cancelCameraBtn">Cancel</button>
+        <button class="btn btn-primary" id="capturePhotoBtn">Capture photo</button>
+    </div>
+</div>
+
+<script>
+    // DOM Elements
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const nativeCameraFallback = document.getElementById('nativeCameraFallback');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const cameraBtn = document.getElementById('cameraBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const voiceToggle = document.getElementById('voiceToggle');
+    
+    const imageContainer = document.getElementById('imageContainer');
+    const previewImg = document.getElementById('previewImg');
+    const scanCanvas = document.getElementById('scanCanvas');
+    const transcriptBox = document.getElementById('transcriptBox');
+
+    const cameraModal = document.getElementById('cameraModal');
+    const cameraVideo = document.getElementById('cameraVideo');
+    const cameraCanvas = document.getElementById('cameraCanvas');
+    const cancelCameraBtn = document.getElementById('cancelCameraBtn');
+    const capturePhotoBtn = document.getElementById('capturePhotoBtn');
+
+    let mediaStream = null;
+
+    // ==========================================
+    // 1. STANDARD FILE UPLOAD & DRAG-DROP
+    // ==========================================
+    uploadBtn.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('click', () => fileInput.click());
+    
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) processImage(e.target.files[0]);
+    });
+
+    nativeCameraFallback.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) processImage(e.target.files[0]);
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => dropzone.addEventListener(eventName, (e) => { e.preventDefault(); dropzone.classList.add('dragover'); }));
+    ['dragleave', 'drop'].forEach(eventName => dropzone.addEventListener(eventName, (e) => { e.preventDefault(); dropzone.classList.remove('dragover'); }));
+    dropzone.addEventListener('drop', (e) => {
+        const files = e.dataTransfer.files;
+        if (files && files[0]) processImage(files[0]);
+    });
+
+    // ==========================================
+    // 2. BULLETPROOF CAMERA LOGIC
+    // ==========================================
+    cameraBtn.addEventListener('click', async () => {
+        try {
+            // 1. Request rear camera
+            mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, 
+                audio: false 
+            });
+            
+            // 2. Attach to video (muted and playsinline are already in HTML, but enforce in JS)
+            cameraVideo.srcObject = mediaStream;
+            cameraVideo.muted = true; 
+            
+            // 3. Explicitly play (Required for iOS Safari)
+            await cameraVideo.play();
+            
+            cameraModal.classList.add('active');
+        } catch (err) {
+            console.error("Custom camera failed, falling back to native:", err);
+            // FALLBACK: If browser blocks custom camera, open native phone camera directly
+            nativeCameraFallback.click();
+        }
+    });
+
+    cancelCameraBtn.addEventListener('click', closeCamera);
+
+    capturePhotoBtn.addEventListener('click', () => {
+        if (!mediaStream || cameraVideo.videoWidth === 0) {
+            alert("Camera is not ready. Please wait a second and try again.");
+            return;
+        }
+
+        const ctx = cameraCanvas.getContext('2d');
+        cameraCanvas.width = cameraVideo.videoWidth;
+        cameraCanvas.height = cameraVideo.videoHeight;
+        
+        ctx.drawImage(cameraVideo, 0, 0, cameraCanvas.width, cameraCanvas.height);
+        
+        cameraCanvas.toBlob((blob) => {
+            if (blob) {
+                const file = new File([blob], `oracle-capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                processImage(file);
+                closeCamera();
+            }
+        }, 'image/jpeg', 0.9);
+    });
+
+    function closeCamera() {
+        if (mediaStream) {
+            mediaStream.getTracks().forEach(track => track.stop()); // Release hardware
+            mediaStream = null;
+        }
+        cameraVideo.srcObject = null;
+        cameraModal.classList.remove('active');
+    }
+
+    // ==========================================
+    // 3. IMAGE PROCESSING & SCAN PATHS
+    // ==========================================
+    function processImage(file) {
+        if (!file.type.startsWith('image/')) return alert('Please select a valid image file.');
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewImg.src = e.target.result;
+            imageContainer.style.display = 'block';
+            previewImg.onload = () => {
+                drawScanPaths();
+                runOracleAnalysis(file.name);
+            };
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function drawScanPaths() {
+        const ctx = scanCanvas.getContext('2d');
+        const width = previewImg.clientWidth;
+        const height = previewImg.clientHeight;
+        scanCanvas.width = width;
+        scanCanvas.height = height;
+        ctx.clearRect(0, 0, width, height);
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+
+        // Path 1: Birth
+        ctx.strokeStyle = 'rgba(0, 82, 204, 0.8)';
+        ctx.beginPath();
+        ctx.moveTo(0, height); ctx.lineTo(width, 0); ctx.lineTo(0, 0); ctx.lineTo(0, height);
+        ctx.stroke();
+
+        // Path 2: Death
+        ctx.strokeStyle = 'rgba(255, 77, 79, 0.8)';
+        ctx.beginPath();
+        ctx.moveTo(width, 0); ctx.lineTo(0, height); ctx.lineTo(width, height); ctx.lineTo(width, 0);
+        ctx.stroke();
+    }
+
+    // ==========================================
+    // 4. ORACLE ANALYSIS & VOICE
+    // ==========================================
+    function runOracleAnalysis(fileName) {
+        transcriptBox.innerHTML = '<span style="color: #4da3ff;">Scanning image data... Tracing AGT8000 paths...</span>';
+        
+        setTimeout(() => {
+            const birthDate = generateRandomDate();
+            const deathDate = generateRandomDate();
+            
+            const transcript = `[AGT8000 ORACLE SCAN COMPLETE]\nFile: ${fileName}\n\n📍 PATH 1 (Day of Birth): \nBorn on a ${birthDate.day}, the ${birthDate.date}.\n\n📍 PATH 2 (Day of Death at Birth): \nEnd date falls on a ${deathDate.day}, the ${deathDate.date}.`;
+
+            transcriptBox.innerHTML = `<pre style="white-space: pre-wrap; margin:0; font-family: inherit;">${transcript}</pre>`;
+
+            if (voiceToggle.checked) speakText(transcript);
+        }, 1500);
+    }
+
+    function generateRandomDate() {
+        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        return {
+            day: days[Math.floor(Math.random() * days.length)],
+            date: `${Math.floor(Math.random() * 28) + 1} ${months[Math.floor(Math.random() * months.length)]}`
+        };
+    }
+
+    function speakText(text) {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 0.9;
+            window.speechSynthesis.speak(utterance);
+        }
+    }
+
+    voiceToggle.addEventListener('change', () => {
+        if (voiceToggle.checked && transcriptBox.querySelector('pre')) speakText(transcriptBox.innerText);
+        else window.speechSynthesis.cancel();
+    });
+
+    clearBtn.addEventListener('click', () => {
+        imageContainer.style.display = 'none';
+        previewImg.src = '';
+        fileInput.value = '';
+        nativeCameraFallback.value = '';
+        transcriptBox.innerHTML = '<span class="placeholder">No questions asked yet.</span>';
+        window.speechSynthesis.cancel();
+        closeCamera();
+    });
+</script>
+</body>
+</html>
